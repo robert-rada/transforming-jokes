@@ -59,7 +59,7 @@ def gather_submissions_by_id(subreddit, save_every=1000, limit=None, start_id=No
                 submission._fetch()
                 break
             except Exception as e:
-                print('Could not fetch submission' + str(id) + '.Retrying in 5 seconds...')
+                print('Could not fetch submission ' + str(id) + '.Retrying in 5 seconds...')
                 print(e)
                 time.sleep(5)
 
@@ -112,7 +112,7 @@ def gather_submissions_by_id(subreddit, save_every=1000, limit=None, start_id=No
 
 
 def main():
-    gather_submissions_by_id('jokes', limit=20)
+    gather_submissions_by_id('dadjokes', start_id='cyw82b')
 
 
 if __name__ == '__main__':
