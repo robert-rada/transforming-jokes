@@ -12,7 +12,7 @@ MAX_COMMENTS_PER_SUBMISSION = 10
 MAX_RETRIES = 20
 
 
-def gather_submissions_by_id(subreddit, save_every=1000, limit=None, start_id=None):
+def gather_submissions_by_id(subreddit, save_every=1000, limit=None, resume=False):
     reddit = praw.Reddit(client_id='pXJ-sYyjZ1iRCA',
                          client_secret='YRGI2E8KjGD-wNK2kq5cA96IaJM',
                          user_agent='python:praw (by /u/Kalydos)')
@@ -31,12 +31,14 @@ def gather_submissions_by_id(subreddit, save_every=1000, limit=None, start_id=No
 
     # If a previous run did not finish processing all submissions we have to continue from
     # whe first unprocessed id.
-    if start_id:
-        ids = ids[ids.index(start_id) + 1:]
-
+    if resume:
         dataset_file = open(os.path.join(DATA_DIR, subreddit + '.json'), 'r')
         dataset_json = json.load(dataset_file)
         dataset_file.close()
+
+        start_id = dataset_json[-1]['id']
+        print('Resuming from id', start_id)
+        ids = ids[ids.index(start_id) + 1:]
 
     if limit and len(ids) > limit:
         ids = ids[:limit]
@@ -94,6 +96,9 @@ def gather_submissions_by_id(subreddit, save_every=1000, limit=None, start_id=No
         # Get some top level comments ordered by score
         submission.comment_sort = 'best'
         for i, comment in enumerate(submission.comments):
+            if not isinstance(comment, praw.models.reddit.comment.Comment):
+                continue
+
             if i >= MAX_COMMENTS_PER_SUBMISSION:
                 break
             submission_json['comments'].append({'body': comment.body, 'score': comment.score})
@@ -112,7 +117,7 @@ def gather_submissions_by_id(subreddit, save_every=1000, limit=None, start_id=No
 
 
 def main():
-    gather_submissions_by_id('dadjokes', start_id='cyw82b')
+    gather_submissions_by_id('jokes', limit=80000, resume=True)
 
 
 if __name__ == '__main__':
