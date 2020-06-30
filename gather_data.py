@@ -43,6 +43,8 @@ def gather_submissions_by_id(subreddit, save_every=1000, limit=None, resume=Fals
     if limit and len(ids) > limit:
         ids = ids[:limit]
 
+    failures = 0
+
     last_id = None
     for id in tqdm(ids):
         last_id = id
@@ -63,11 +65,16 @@ def gather_submissions_by_id(subreddit, save_every=1000, limit=None, resume=Fals
             except Exception as e:
                 print('Could not fetch submission ' + str(id) + '.Retrying in 5 seconds...')
                 print(e)
+                submission = None
                 time.sleep(5)
 
         if submission is None:
+            failures += 1
+            if failures > 20:
+                print('Too many failures. Stopping...')
+                break
             print('Could not fetch submission ' + str(id))
-            break
+            continue
 
         # Make sure that submissions are self posts (ignore links) and are not stickied
         if not submission.is_self or submission.stickied:
@@ -117,7 +124,7 @@ def gather_submissions_by_id(subreddit, save_every=1000, limit=None, resume=Fals
 
 
 def main():
-    gather_submissions_by_id('jokes', limit=80000, resume=True)
+    gather_submissions_by_id('jokes', limit=120000, resume=True)
 
 
 if __name__ == '__main__':

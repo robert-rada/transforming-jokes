@@ -190,7 +190,7 @@ def process_dataset(subreddit):
 
 def main():
     random.seed(42)
-    process_dataset('dadjokes')
+    process_dataset('jokes')
 
 
 if __name__ == '__main__':
