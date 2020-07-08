@@ -1,6 +1,8 @@
 import json
+import operator
 import os
 import random
+import re
 
 DATA_DIR = 'data'
 PROCESSED_DATA_DIR = 'processed_data'
@@ -104,6 +106,10 @@ def gen_text_corpus(dataset, subreddit):
     file_title.close()
     file_comment.close()
 
+    fix_file(os.path.join(PROCESSED_DATA_DIR, subreddit + '.txt'))
+    fix_file(os.path.join(PROCESSED_DATA_DIR, subreddit + '_title.txt'))
+    fix_file(os.path.join(PROCESSED_DATA_DIR, subreddit + '_comment.txt'))
+
 
 def gen_humor_detection_data(dataset, subreddit):
     data = []
@@ -127,6 +133,9 @@ def gen_humor_detection_data(dataset, subreddit):
     test_data = data[:test_idx]
     dev_data = data[test_idx:dev_idx]
     train_data = data[dev_idx:]
+    print('test_data:', len(test_data))
+    print('dev_data:', len(dev_data))
+    print('train_data:', len(train_data))
 
     with open(os.path.join(PROCESSED_DATA_DIR, subreddit + '_test.csv'), 'w') as f:
         f.write('text<endoftext>humor\n')
@@ -135,6 +144,7 @@ def gen_humor_detection_data(dataset, subreddit):
                 f.write(example + '\n')
             except:
                 pass
+    fix_file(os.path.join(PROCESSED_DATA_DIR, subreddit + '_test.csv'))
 
     with open(os.path.join(PROCESSED_DATA_DIR, subreddit + '_dev.csv'), 'w') as f:
         f.write('text<endoftext>humor\n')
@@ -143,6 +153,7 @@ def gen_humor_detection_data(dataset, subreddit):
                 f.write(example + '\n')
             except:
                 pass
+    fix_file(os.path.join(PROCESSED_DATA_DIR, subreddit + '_dev.csv'))
 
     with open(os.path.join(PROCESSED_DATA_DIR, subreddit + '_train.csv'), 'w') as f:
         f.write('text<endoftext>humor\n')
@@ -151,6 +162,7 @@ def gen_humor_detection_data(dataset, subreddit):
                 f.write(example + '\n')
             except:
                 pass
+    fix_file(os.path.join(PROCESSED_DATA_DIR, subreddit + '_train.csv'))
 
     with open(os.path.join(PROCESSED_DATA_DIR, subreddit + '.csv'), 'w') as f:
         f.write('text<endoftext>humor\n')
@@ -159,6 +171,32 @@ def gen_humor_detection_data(dataset, subreddit):
                 f.write(example + '\n')
             except:
                 pass
+    fix_file(os.path.join(PROCESSED_DATA_DIR, subreddit + '.csv'))
+
+
+def remove_reposts(dataset):
+    submissions = []
+    for submission in dataset:
+        text = submission['title'] + submission['body']
+        text = re.sub(r'[^a-z]', '', text.lower())
+        submissions.append((text, submission['score'], submission['id']))
+
+    removed_ids = {}
+    submissions.sort(key=operator.itemgetter(0, 1))
+
+    for i in range(1, len(submissions)):
+        if submissions[i-1][0] == submissions[i][0] or submissions[i-1][0] == '':
+            removed_ids[submissions[i-1][2]] = True
+
+    return [example for example in dataset if example['id'] not in removed_ids]
+
+
+def fix_file(path):
+    with open(path, 'r') as f:
+        text = f.read()
+    text = text.replace('&#x200B;', '')
+    with open(path, 'w') as f:
+        f.write(text)
 
 
 def process_dataset(subreddit):
@@ -176,6 +214,7 @@ def process_dataset(subreddit):
 
     # Remove invalid submissions
     dataset = [submission for submission in dataset if valid_submission(submission)]
+    dataset = remove_reposts(dataset)
 
     for submission in dataset:
         submission['comments'] = [comment for comment in submission['comments'] if valid_comment(comment)]
@@ -190,7 +229,7 @@ def process_dataset(subreddit):
 
 def main():
     random.seed(42)
-    process_dataset('jokes')
+    process_dataset('dadjokes')
 
 
 if __name__ == '__main__':

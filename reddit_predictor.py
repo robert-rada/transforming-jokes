@@ -37,28 +37,25 @@ tokenizer = BertTokenizer.from_pretrained(MODEL_TYPE)
 Read tokenizer and data, as well as defining the maximum sequence length that will be used for the input to Bert (maximum is usually 512 tokens)
 """
 
-HAS_ANS = False
-training_sample_count = 1000 # 4000
-training_epochs = 1 # 3
-test_count = 1000
-running_folds = 1 # 2
+training_epochs = 0
+SUBREDDIT = 'jokes'
 MAX_SEQUENCE_LENGTH = 200
 
-"""### original dataset"""
+df = pd.read_csv('processed_data/' + SUBREDDIT + '.csv', sep='<endoftext>')
 
-import io
-
-
-df = pd.read_csv('processed_data/jokes.csv', sep='<endoftext>')
-
-df_train = pd.read_csv('processed_data/jokes_train.csv', sep='<endoftext>')
+df_train = pd.read_csv('processed_data/' + SUBREDDIT + '_train.csv', sep='<endoftext>')
 print(df_train.head(3))
 
-df_test = pd.read_csv('processed_data/jokes_test.csv', sep='<endoftext>')
+df_test = pd.read_csv('processed_data/' + SUBREDDIT + '_test.csv', sep='<endoftext>')
 print(df_test.head(3))
 
-df_dev = pd.read_csv('processed_data/jokes_dev.csv', sep='<endoftext>')
+df_dev = pd.read_csv('processed_data/' + SUBREDDIT + '_dev.csv', sep='<endoftext>')
 
+# df_train = df_train[:10]
+# df_test = df_test[:10]
+# df_dev = df_dev[:10]
+# df = df_train + df_test + df_dev
+ 
 
 test_df_y = df_test.copy()
 del df_test['humor']
@@ -73,11 +70,6 @@ print(list(df_train.columns))
 
 output_categories = list(df_train.columns[[1]])
 input_categories = list(df_train.columns[[0]])
-
-if HAS_ANS:
-    output_categories = list(df_train.columns[11:])
-    input_categories = list(df_train.columns[[1,2,5]])
-    
 
 TARGET_COUNT = len(output_categories)
 
@@ -100,7 +92,8 @@ def _convert_to_transformer_inputs(title, question, answer, tokenizer, max_seque
         inputs = tokenizer.encode_plus(str1, str2,
             add_special_tokens=True,
             max_length=length,
-            truncation_strategy=truncation_strategy)
+            truncation_strategy=truncation_strategy,
+            truncation=True)
         
         input_ids =  inputs["input_ids"]
         input_masks = [1] * len(input_ids)
@@ -233,105 +226,107 @@ def print_evaluation_metrics(y_true, y_pred, label='', is_regression=True, label
         print('Acc', Accuracy, 'Prec', Precision, 'Rec', Recall, 'F1',F1)
         return sklearn.metrics.accuracy_score(y_true, y_pred)
 
+
+def max_f1(y_true, y_pred):
+    max_f1_score = 0
+    best_split = 0
+    for split_val in np.arange(0.05, 0.99, 0.05):
+        f1 = sklearn.metrics.f1_score(y_true, y_pred >= split_val)
+        if f1 > max_f1_score:
+            max_f1_score = f1
+            best_split = split_val
+
+    return max_f1_score, best_split
+
+
 print_evaluation_metrics([1,0], [0.9,0.1], '', True)
 print_evaluation_metrics([1,0], [1,1], '', False)
 
 print(len(dev_inputs), len(dev_inputs[0]))
 
-"""### Training
-Regression problem between 0 and 1, so binary_crossentropy and mean_absolute_error seem good.
-
-Here are the explanations: https://www.dlology.com/blog/how-to-choose-last-layer-activation-and-loss-function/
-"""
-
-min_err = 1000000
+# TRAINING
 min_test = []
-valid_preds = []
 test_preds = []
+valid_preds = []
 best_model = False
-# for LR in np.arange(1e-5, 2e-5, 3e-5).tolist():
-for LR in [1e-5]:
-    print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
-    print('LR=', LR)
+load_model = True
+LR = 0.000005
+max_score = 0
 
-    # train_inputs = [(inputs[i][:])[:training_sample_count] for i in range(len(inputs))]
-    # train_outputs = (outputs[:])[:training_sample_count]
-    train_inputs = inputs
-    train_outputs = outputs
+print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
 
-    valid_inputs = dev_inputs
-    valid_outputs = dev_outputs
+train_inputs = inputs
+train_outputs = outputs
 
-    print(np.array(train_inputs).shape, np.array(train_outputs).shape)
+valid_inputs = dev_inputs
+valid_outputs = dev_outputs
 
-    K.clear_session()
-    model = create_model()
-    optimizer = tf.keras.optimizers.Adam(learning_rate=LR)
-    model.compile(loss='binary_crossentropy', optimizer=optimizer)
+print(np.array(train_inputs).shape, np.array(train_outputs).shape)
 
+K.clear_session()
+model = create_model()
+optimizer = tf.keras.optimizers.Adam(learning_rate=LR)
+model.compile(loss='binary_crossentropy', optimizer=optimizer)
+
+if load_model:
     # LOAD MODEL
+    print('Loading best model...')
     t_inputs = [(inputs[i][:])[:1] for i in range(len(inputs))]
     t_outputs = (outputs[:])[:1]
     model.fit(t_inputs, t_outputs, epochs=1, batch_size=6)
 
-    model.load_weights('jokes_model/weights.h5')
-    with open('jokes_model/optimizer.pkl', 'rb') as f:
+    model.load_weights('predictor_models/' + SUBREDDIT + '/weights.h5')
+    with open('predictor_models/' + SUBREDDIT + '/optimizer.pkl', 'rb') as f:
         weight_values = pickle.load(f)
     model.optimizer.set_weights(weight_values)
 
-    model.fit(train_inputs, train_outputs, epochs=training_epochs, batch_size=6)
-    print('finished fit')
-            # model.save_weights(f'bert-{fold}.h5')
     valid_preds.append(model.predict(valid_inputs, verbose=1))
-    print('finished predict')
-            #rho_val = compute_spearmanr_ignore_nan(valid_outputs, valid_preds[-1])
-            #print('validation score = ', rho_val)
-    acc = print_evaluation_metrics(np.array(valid_outputs), np.array(valid_preds[-1]), 'on #'+str(1))
-    print('acc', acc)
-    if acc < min_err:
-        print('new acc >> ', acc)
-        min_err = acc
+    max_score, _ = max_f1(np.array(valid_outputs), np.array(valid_preds[-1]))
+    print('Current max score:', max_score)
+
+    best_model = model
+
+for i in range(training_epochs):
+    if i % 3 == 0 and i > 0:
+        LR = LR / 2
+        print('Reducing learning rate to', LR)
+        model.optimizer.lr.assign(LR)
+
+    print('Starting epoch', i)
+    model.fit(train_inputs, train_outputs, epochs=1, batch_size=6)
+    valid_preds.append(model.predict(valid_inputs, verbose=1))
+    score, _ = max_f1(np.array(valid_outputs), np.array(valid_preds[-1]))
+    print('score', score)
+    if score >= max_score:
+        print('new score >> ', score)
+        print('Saving model...')
+        max_score = score
         best_model = model
-#                 min_test = model.predict(test_inputs)
-#                 test_preds.append(min_test)
 
         # SAVE MODEL
-        best_model.save_weights('/content/gdrive/My Drive/jokes_model/weights2.h5')
+        best_model.save_weights('predictor_models/' + SUBREDDIT + '/weights.h5')
         symbolic_weights = getattr(best_model.optimizer, 'weights')
         weight_values = K.batch_get_value(symbolic_weights)
-        with open('/content/gdrive/My Drive/jokes_model/optimizer2.pkl', 'wb') as f:
+        with open('predictor_models/' + SUBREDDIT + '/optimizer.pkl', 'wb') as f:
             pickle.dump(weight_values, f)
 
         print(' ')
-
-print('best acc >> ', acc)
+    else:
+        print('score did not improve')
 
 len(valid_inputs[0])
 
 print(valid_outputs.shape, valid_preds[-1].shape)
 print_evaluation_metrics(np.array(valid_outputs), np.array(valid_preds[-1]), '')
 
-# %%time
 min_test = best_model.predict(test_inputs, verbose=1)
-
-## use min_test
-# min_test
-
-df_test.to_csv('df_test.csv')
-test_df_y.to_csv('test_df_y.csv')
 
 """## Regression submission"""
 
 df_sub = test_df_y.copy()
-# df_sub['pred'] = np.average(test_preds, axis=0) # for weighted average set weights=[...]
 df_sub['pred'] = min_test
 
-
 print_evaluation_metrics(df_sub['humor'], df_sub['pred'], '', True)
-
-
-df_sub.to_csv('sub1.csv', index=False)
-df_sub.head()
 
 """## Binary submission"""
 
@@ -339,6 +334,6 @@ for split in np.arange(0.1, 0.99, 0.1).tolist():
     df_sub['pred_bi'] = (df_sub['pred'] > split)
 
     print_evaluation_metrics(df_sub['humor'], df_sub['pred_bi'], '', False, 'SPLIT on '+str(split))
-
-    df_sub.to_csv('sub3.csv', index=False)
     df_sub.head()
+
+print('max score and split:', max_f1(df_sub['humor'], df_sub['pred']))

@@ -17,7 +17,9 @@ from datetime import datetime
 
 from transformers import BertTokenizer, TFBertModel
 
-SUBREDDIT = 'jokes'
+from similarity_test import remove_reposts
+
+SUBREDDIT = 'antijokes'
 MODEL_TYPE = 'bert-base-uncased'
 MAX_SEQUENCE_LENGTH = 200
 GEN_FILE_FOLDER = 'outputs'
@@ -174,7 +176,10 @@ def write_result_to_file(df):
 
 def main():
     df = read_generated_text()
-    print(df.dtypes)
+
+    print('before removing reposts:', len(df))
+    df = remove_reposts(df, SUBREDDIT)
+    print('after removing reposts:', len(df))
 
     tokenizer = BertTokenizer.from_pretrained(MODEL_TYPE)
 
