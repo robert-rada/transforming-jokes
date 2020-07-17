@@ -121,7 +121,7 @@ def gen_humor_detection_data(dataset, subreddit):
         text = text.replace('\r', ' ')
 
         try:
-            data.append(text + '<endoftext>' + str(good))
+            data.append(text + '<endoftext>' + str(good) + '<endoftext>' + str(submission['score']))
         except:
             pass
 
@@ -138,7 +138,7 @@ def gen_humor_detection_data(dataset, subreddit):
     print('train_data:', len(train_data))
 
     with open(os.path.join(PROCESSED_DATA_DIR, subreddit + '_test.csv'), 'w') as f:
-        f.write('text<endoftext>humor\n')
+        f.write('text<endoftext>humor<endoftext>score\n')
         for example in test_data:
             try:
                 f.write(example + '\n')
@@ -147,7 +147,7 @@ def gen_humor_detection_data(dataset, subreddit):
     fix_file(os.path.join(PROCESSED_DATA_DIR, subreddit + '_test.csv'))
 
     with open(os.path.join(PROCESSED_DATA_DIR, subreddit + '_dev.csv'), 'w') as f:
-        f.write('text<endoftext>humor\n')
+        f.write('text<endoftext>humor<endoftext>score\n')
         for example in dev_data:
             try:
                 f.write(example + '\n')
@@ -156,7 +156,7 @@ def gen_humor_detection_data(dataset, subreddit):
     fix_file(os.path.join(PROCESSED_DATA_DIR, subreddit + '_dev.csv'))
 
     with open(os.path.join(PROCESSED_DATA_DIR, subreddit + '_train.csv'), 'w') as f:
-        f.write('text<endoftext>humor\n')
+        f.write('text<endoftext>humor<endoftext>score\n')
         for example in train_data:
             try:
                 f.write(example + '\n')
@@ -165,7 +165,7 @@ def gen_humor_detection_data(dataset, subreddit):
     fix_file(os.path.join(PROCESSED_DATA_DIR, subreddit + '_train.csv'))
 
     with open(os.path.join(PROCESSED_DATA_DIR, subreddit + '.csv'), 'w') as f:
-        f.write('text<endoftext>humor\n')
+        f.write('text<endoftext>humor<endoftext>score\n')
         for example in data:
             try:
                 f.write(example + '\n')
@@ -229,7 +229,7 @@ def process_dataset(subreddit):
 
 def main():
     random.seed(42)
-    process_dataset('dadjokes')
+    process_dataset('jokes')
 
 
 if __name__ == '__main__':

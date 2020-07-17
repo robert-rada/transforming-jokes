@@ -46,7 +46,7 @@ def generate_to_file(sess, run_name, subreddit, n=1000, temp=0.7):
 
     gpt2.generate_to_file(sess,
                           destination_path=path,
-                          length=100,
+                          length=50,
                           temperature=temp,
                           nsamples=n,
                           batch_size=20,

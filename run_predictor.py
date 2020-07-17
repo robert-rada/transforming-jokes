@@ -10,20 +10,21 @@ from scipy.stats import spearmanr
 from math import floor, ceil
 from transformers import *
 import string
-import re  # for regex
+import re
 import pickle
 import glob
 from datetime import datetime
+import sys
+import json
 
 from transformers import BertTokenizer, TFBertModel
 
 from similarity_test import remove_reposts
+import preprocess
 
-SUBREDDIT = 'antijokes'
 MODEL_TYPE = 'bert-base-uncased'
 MAX_SEQUENCE_LENGTH = 200
 GEN_FILE_FOLDER = 'outputs'
-GEN_FILE_PREFIX = SUBREDDIT + '_gentext'
 SEPARATOR = '===================='
 
 
@@ -130,13 +131,14 @@ def valid_submission(text):
     return True
 
 
-def read_generated_text():
+def read_generated_text(subreddit):
     print('Reading generated text...')
 
     text_list = []
     text_list_with_tokens = []
+    gen_file_prefix = subreddit + '_gentext'
 
-    for file_name in glob.glob(os.path.join(GEN_FILE_FOLDER, GEN_FILE_PREFIX + '*')):
+    for file_name in glob.glob(os.path.join(GEN_FILE_FOLDER, gen_file_prefix + '*')):
         with open(file_name, 'r') as file:
             for submission in file.read().split(SEPARATOR):
                 if not valid_submission(submission):
@@ -160,25 +162,68 @@ def read_generated_text():
     return df
 
 
-def write_result_to_file(df):
-    file_name = SUBREDDIT + '_pred_{:%Y%m%d_%H%M%S}.txt'.format(datetime.utcnow())
+def write_result_to_file(df, subreddit):
+    file_name = subreddit + '_pred_{:%Y%m%d_%H%M%S}.txt'.format(datetime.utcnow())
     path = os.path.join(GEN_FILE_FOLDER, file_name)
 
     d = df.to_dict('list')
 
     with open(path, 'w') as file:
         for i in range(len(df)):
-            file.write(SEPARATOR + '\n')
-            file.write(str(d['pred'][i]) + '\n')
-            file.write(d['text_token'][i] + '\n')
+            try:
+                file.write(SEPARATOR + '\n')
+                file.write(str(d['pred'][i]) + '\n')
+                file.write(d['text'][i] + '\n')
+            except:
+                pass
         file.write(SEPARATOR)
 
 
-def main():
-    df = read_generated_text()
+def main2():
+    if len(sys.argv) < 2:
+        print('Usage: python run_predictor.py SUBREDDIT')
+        return
+
+    subreddit = sys.argv[1]
+
+    # with open('data/jokes.json') as f:
+    #     dataset = json.load(f)
+    #     dataset.sort(key=lambda example: example['score'], reverse=True)
+    #
+    #     text_list_with_tokens = []
+    #     text_list = []
+    #     for i in range(3000):
+    #         submission = dataset[i]
+    #         submission['title'] = preprocess.replace_unicode(submission['title'])
+    #         submission['body'] = preprocess.replace_unicode(submission['body'])
+    #
+    #         text = '<|startoftext|> ' + submission['title'] + ' <|endoftitle|> ' + submission['body'] + ' <|endoftext|>'
+    #         if not valid_submission(text) or not preprocess.valid_submission(submission):
+    #             continue
+    #
+    #         text = text.lstrip()
+    #         text = text.replace('&#x200B;', '')
+    #
+    #         text_list_with_tokens.append(text[:])
+    #
+    #         text = text.replace('<|startoftext|>', '')
+    #         text = text.replace('<|endoftitle|>', '')
+    #
+    #         text_list.append(text)
+    #
+    #     d = {'text': text_list, 'text_token': text_list_with_tokens}
+    #     df = pd.DataFrame(d)
+    #     print(df.head(5))
+
+    df_test = pd.read_csv('processed_data/' + subreddit + '_test.csv', sep='<endoftext>')
+    df_dev = pd.read_csv('processed_data/' + subreddit + '_dev.csv', sep='<endoftext>')
+
+    df = pd.concat([df_test, df_dev])
+
+    df = df[df.score > 3000]
 
     print('before removing reposts:', len(df))
-    df = remove_reposts(df, SUBREDDIT)
+    # df = remove_reposts(df, subreddit, tolerance=0.75)
     print('after removing reposts:', len(df))
 
     tokenizer = BertTokenizer.from_pretrained(MODEL_TYPE)
@@ -195,15 +240,51 @@ def main():
     t_inputs = [(inputs[i][:])[:1] for i in range(len(inputs))]
     t_outputs = np.array([[False]])
     model.fit(t_inputs, t_outputs, epochs=1, batch_size=1)
-    model.load_weights('jokes_model/weights.h5')
+    model.load_weights('predictor_models/' + subreddit + '/weights.h5')
 
     prediction = model.predict(inputs, verbose=1)
     df['pred'] = prediction
     df = df.sort_values('pred', ascending=False)
     print(df.head())
-    write_result_to_file(df)
+    write_result_to_file(df, subreddit)
+
+
+def main():
+    if len(sys.argv) < 2:
+        print('Usage: python run_predictor.py SUBREDDIT')
+        return
+
+    subreddit = sys.argv[1]
+
+    df = read_generated_text(subreddit)
+
+    print('before removing reposts:', len(df))
+    df = remove_reposts(df, subreddit, tolerance=0.75)
+    print('after removing reposts:', len(df))
+
+    tokenizer = BertTokenizer.from_pretrained(MODEL_TYPE)
+
+    inputs = compute_input_arrays(df, ['text'], tokenizer, MAX_SEQUENCE_LENGTH)
+
+    print('Loading model...')
+
+    K.clear_session()
+    model = create_model()
+    optimizer = tf.keras.optimizers.Adam(learning_rate=0.00001)
+    model.compile(loss='binary_crossentropy', optimizer=optimizer)
+
+    t_inputs = [(inputs[i][:])[:1] for i in range(len(inputs))]
+    t_outputs = np.array([[False]])
+    model.fit(t_inputs, t_outputs, epochs=1, batch_size=1)
+    model.load_weights('predictor_models/' + subreddit + '/weights.h5')
+
+    prediction = model.predict(inputs, verbose=1)
+    df['pred'] = prediction
+    df = df.sort_values('pred', ascending=False)
+    print(df.head())
+    write_result_to_file(df, subreddit)
 
 
 if __name__ == '__main__':
-    main()
+    main2()
 
