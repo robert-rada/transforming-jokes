@@ -1,26 +1,16 @@
 import pandas as pd
 import numpy as np
-from tqdm import tqdm
-# import tensorflow_hub as hub
 import tensorflow as tf
-# import bert_tokenization as tokenization
 import tensorflow.keras.backend as K
 import os
-from scipy.stats import spearmanr
-from math import floor, ceil
-from transformers import *
-import string
-import re
-import pickle
 import glob
-from datetime import datetime
 import sys
-import json
-
-from transformers import BertTokenizer, TFBertModel
+import getopt
+from tqdm import tqdm
+from datetime import datetime
+from transformers import *
 
 from similarity_test import remove_reposts
-import preprocess
 
 MODEL_TYPE = 'bert-base-uncased'
 MAX_SEQUENCE_LENGTH = 200
@@ -29,8 +19,6 @@ SEPARATOR = '===================='
 
 
 def _convert_to_transformer_inputs(title, question, answer, tokenizer, max_sequence_length):
-    """Converts tokenized input to ids, masks and segments for transformer (including bert)"""
-
     def return_id(str1, str2, truncation_strategy, length):
         inputs = tokenizer.encode_plus(str1, str2,
                                        add_special_tokens=True,
@@ -186,44 +174,15 @@ def main2():
 
     subreddit = sys.argv[1]
 
-    # with open('data/jokes.json') as f:
-    #     dataset = json.load(f)
-    #     dataset.sort(key=lambda example: example['score'], reverse=True)
-    #
-    #     text_list_with_tokens = []
-    #     text_list = []
-    #     for i in range(3000):
-    #         submission = dataset[i]
-    #         submission['title'] = preprocess.replace_unicode(submission['title'])
-    #         submission['body'] = preprocess.replace_unicode(submission['body'])
-    #
-    #         text = '<|startoftext|> ' + submission['title'] + ' <|endoftitle|> ' + submission['body'] + ' <|endoftext|>'
-    #         if not valid_submission(text) or not preprocess.valid_submission(submission):
-    #             continue
-    #
-    #         text = text.lstrip()
-    #         text = text.replace('&#x200B;', '')
-    #
-    #         text_list_with_tokens.append(text[:])
-    #
-    #         text = text.replace('<|startoftext|>', '')
-    #         text = text.replace('<|endoftitle|>', '')
-    #
-    #         text_list.append(text)
-    #
-    #     d = {'text': text_list, 'text_token': text_list_with_tokens}
-    #     df = pd.DataFrame(d)
-    #     print(df.head(5))
-
     df_test = pd.read_csv('processed_data/' + subreddit + '_test.csv', sep='<endoftext>')
     df_dev = pd.read_csv('processed_data/' + subreddit + '_dev.csv', sep='<endoftext>')
 
     df = pd.concat([df_test, df_dev])
 
-    df = df[df.score > 3000]
+    df = df[df.score < 2]
 
     print('before removing reposts:', len(df))
-    # df = remove_reposts(df, subreddit, tolerance=0.75)
+    df = remove_reposts(df, subreddit, tolerance=0.75)
     print('after removing reposts:', len(df))
 
     tokenizer = BertTokenizer.from_pretrained(MODEL_TYPE)
@@ -286,5 +245,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main2()
+    main()
 

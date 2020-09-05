@@ -4,6 +4,8 @@ import json
 import os
 import time
 from tqdm import tqdm
+import getopt
+import sys
 
 
 IDS_DIR = 'submission_ids'
@@ -30,15 +32,18 @@ def gather_submissions_by_id(subreddit, save_every=1000, limit=None, resume=Fals
     dataset_json = []
 
     # If a previous run did not finish processing all submissions we have to continue from
-    # whe first unprocessed id.
+    # the first unprocessed id.
     if resume:
-        dataset_file = open(os.path.join(DATA_DIR, subreddit + '.json'), 'r')
-        dataset_json = json.load(dataset_file)
-        dataset_file.close()
+        try:
+            dataset_file = open(os.path.join(DATA_DIR, subreddit + '.json'), 'r')
+            dataset_json = json.load(dataset_file)
+            dataset_file.close()
 
-        start_id = dataset_json[-1]['id']
-        print('Resuming from id', start_id)
-        ids = ids[ids.index(start_id) + 1:]
+            start_id = dataset_json[-1]['id']
+            print('Resuming from id', start_id)
+            ids = ids[ids.index(start_id) + 1:]
+        except:
+            dataset_json = []
 
     if limit and len(ids) > limit:
         ids = ids[:limit]
@@ -120,11 +125,37 @@ def gather_submissions_by_id(subreddit, save_every=1000, limit=None, resume=Fals
         print('Finished gathering data')
     if last_id:
         print('Stopped at id', last_id)
-        print('Rerun with start_id=\'', last_id, '\' to continue', sep='')
+        print('Rerun with --resume=True to continue', sep='')
 
 
 def main():
-    gather_submissions_by_id('jokes', limit=120000, resume=True)
+    argument_list = sys.argv[1:]
+    options = "s:l:r:"
+    long_options = ["subreddit =", "limit =", "resume ="]
+
+    subreddit = 'jokes'
+    limit = '1000'
+    resume = True
+
+    try:
+        arguments, values = getopt.getopt(argument_list, options, long_options)
+
+        for current_argument, current_value in arguments:
+            if current_argument in ("-s", "--subreddit "):
+                subreddit = current_value
+
+            elif current_argument in ("-l", "--limit "):
+                limit = int(current_value)
+
+            elif current_argument in ("-r", "--resume "):
+                resume = current_value == 'True'
+
+    except getopt.error as err:
+        print(str(err))
+
+    print(subreddit, limit, resume)
+
+    gather_submissions_by_id(subreddit, limit=limit, resume=resume)
 
 
 if __name__ == '__main__':

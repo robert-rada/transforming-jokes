@@ -1,41 +1,41 @@
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import gpt_2_simple as gpt2
 from datetime import datetime
 import sys
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 OUTPUT_DIR = 'outputs'
 
 
-def generate_title_body(sess, run_name):
-    for _ in range(20):
-        title = gpt2.generate(sess,
-                              length=50,
-                              temperature=0.7,
-                              prefix="<|startoftext|>",
-                              truncate="<|endoftitle|>",
-                              include_prefix=False,
-                              nsamples=1,
-                              batch_size=1,
-                              return_as_list=True,
-                              run_name=RUN_NAME,
-                              checkpoint_dir='generator_models/'
-                              )[0]
-        body = gpt2.generate(sess,
-                             length=50,
-                             temperature=0.7,
-                             prefix=title + ' <|endoftitle|>',
-                             truncate="<|endoftext|>",
-                             include_prefix=False,
-                             nsamples=1,
-                             batch_size=1,
-                             return_as_list=True,
-                             run_name=RUN_NAME,
-                             checkpoint_dir='generator_models/'
-                             )[0]
-
-        print('Title:', title)
-        print('Body:', body)
+# def generate_title_body(sess, run_name):
+#     for _ in range(20):
+#         title = gpt2.generate(sess,
+#                               length=50,
+#                               temperature=0.7,
+#                               prefix="<|startoftext|>",
+#                               truncate="<|endoftitle|>",
+#                               include_prefix=False,
+#                               nsamples=1,
+#                               batch_size=1,
+#                               return_as_list=True,
+#                               run_name=RUN_NAME,
+#                               checkpoint_dir='generator_models/'
+#                               )[0]
+#         body = gpt2.generate(sess,
+#                              length=50,
+#                              temperature=0.7,
+#                              prefix=title + ' <|endoftitle|>',
+#                              truncate="<|endoftext|>",
+#                              include_prefix=False,
+#                              nsamples=1,
+#                              batch_size=1,
+#                              return_as_list=True,
+#                              run_name=RUN_NAME,
+#                              checkpoint_dir='generator_models/'
+#                              )[0]
+#
+#         print('Title:', title)
+#         print('Body:', body)
 
 
 def generate_to_file(sess, run_name, subreddit, n=1000, temp=0.7):
@@ -44,17 +44,22 @@ def generate_to_file(sess, run_name, subreddit, n=1000, temp=0.7):
 
     print('Generating', n, 'submissions to file', file)
 
-    gpt2.generate_to_file(sess,
-                          destination_path=path,
-                          length=50,
-                          temperature=temp,
-                          nsamples=n,
-                          batch_size=20,
-                          checkpoint_dir='generator_models/',
-                          prefix="<|startoftext|>",
-                          truncate="<|endoftext|>",
-                          include_prefix=True,
-                          run_name=run_name)
+    try:
+        gpt2.generate_to_file(sess,
+                              destination_path=path,
+                              length=50,
+                              temperature=temp,
+                              nsamples=n,
+                              batch_size=20,
+                              top_k=50, # test
+                              top_p=0.95, # test
+                              checkpoint_dir='generator_models/',
+                              prefix="<|startoftext|>",
+                              truncate="<|endoftext|>",
+                              include_prefix=True,
+                              run_name=run_name)
+    except UnicodeEncodeError:
+        print('Stopping early due to an encoding error.')
 
 
 # The model is loaded from a path written in the file 'checkpoint' in the model folder.
@@ -88,7 +93,7 @@ def main():
         print('Third argument should be an integer')
         return
 
-    temperature = 0.7
+    temperature = 1
     if len(sys.argv) >= 5:
         temperature = float(sys.argv[4])
 
@@ -98,6 +103,8 @@ def main():
     gpt2.load_gpt2(sess, run_name=run_name, checkpoint_dir='generator_models')
 
     generate_to_file(sess, run_name, subreddit, n=no_samples, temp=temperature)
+
+    print('Done.')
 
 
 if __name__ == '__main__':

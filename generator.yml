@@ -1,0 +1,50 @@
+name: generator
+channels:
+  - defaults
+dependencies:
+  - certifi=2020.6.20=py36_0
+  - pip=20.1.1=py36_1
+  - python=3.6.9=h5500b2f_0
+  - setuptools=47.3.1=py36_0
+  - sqlite=3.32.3=h2a8f88b_0
+  - vc=14.1=h0510ff6_4
+  - vs2015_runtime=14.16.27012=hf0eaf9b_2
+  - wheel=0.34.2=py36_0
+  - wincertstore=0.2=py36h7fe50ca_0
+  - zlib=1.2.11=h62dcd97_4
+  - pip:
+    - absl-py==0.9.0
+    - astor==0.8.1
+    - chardet==3.0.4
+    - gast==0.2.2
+    - google-pasta==0.2.0
+    - gpt-2-simple==0.7.1
+    - grpcio==1.30.0
+    - h5py==2.10.0
+    - idna==2.10
+    - importlib-metadata==1.7.0
+    - joblib==0.16.0
+    - keras-applications==1.0.8
+    - keras-preprocessing==1.1.2
+    - markdown==3.2.2
+    - numpy==1.19.0
+    - opt-einsum==3.2.1
+    - protobuf==3.12.2
+    - regex==2020.6.8
+    - requests==2.24.0
+    - scikit-learn==0.23.2
+    - scipy==1.5.2
+    - six==1.15.0
+    - tensorboard==1.15.0
+    - tensorflow-estimator==1.15.1
+    - tensorflow-gpu==1.15.0
+    - termcolor==1.1.0
+    - threadpoolctl==2.1.0
+    - toposort==1.5
+    - tqdm==4.47.0
+    - urllib3==1.25.9
+    - werkzeug==1.0.1
+    - wrapt==1.12.1
+    - zipp==3.1.0
+prefix: R:\Anaconda\envs\generator
+

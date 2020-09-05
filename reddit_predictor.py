@@ -1,61 +1,85 @@
 import pandas as pd
 import numpy as np
-import sklearn
-from sklearn.model_selection import GroupKFold
-import matplotlib.pyplot as plt
-from tqdm import tqdm
-# import tensorflow_hub as hub
 import tensorflow as tf
-# import bert_tokenization as tokenization
 import tensorflow.keras.backend as K
-import os
-from scipy.stats import spearmanr
-from math import floor, ceil
-from transformers import *
-
-import string
-import re    #for regex
+import random
+import sklearn
 import pickle
+from transformers import *
+from tqdm import tqdm
+import getopt
+import sys
+
+random.seed(42)
 
 print(tf.test.gpu_device_name())
 np.set_printoptions(suppress=True)
 print(tf.__version__)
-
-"""# Choose model"""
-
-from transformers import BertTokenizer, TFBertModel
 
 
 MODEL_TYPE = 'bert-base-uncased'
 MAX_SIZE = 200
 BATCH_SIZE = 200
 
-tokenizer = BertTokenizer.from_pretrained(MODEL_TYPE)
+MAX_SEQUENCE_LENGTH = 200
+SUBREDDIT = 'antijokes'
+training_epochs = 0
+load_model = False
+rebalance_classes = False
+LR = 0.000001
 
-"""#### 1. Read data and tokenizer
+argument_list = sys.argv[1:]
+options = "s:n:lra:"
+long_options = ["subreddit=", "no_epochs=", "load_model", "rebalance", "learning_rate="]
 
-Read tokenizer and data, as well as defining the maximum sequence length that will be used for the input to Bert (maximum is usually 512 tokens)
+try:
+    arguments, values = getopt.getopt(argument_list, options, long_options)
+
+    for current_argument, current_value in arguments:
+        if current_argument in ("-s", "--subreddit"):
+            SUBREDDIT = current_value
+
+        elif current_argument in ("-l", "--no_epochs"):
+            training_epochs = int(current_value)
+
+        elif current_argument in ("-r", "--load_model"):
+            load_model = True
+
+        elif current_argument in ("-r", "--rebalance"):
+            rebalance_classes = True
+
+        elif current_argument in ("-r", "--learning_rate"):
+            LR = float(current_value)
+except getopt.error as err:
+    print(str(err))
+
+print(SUBREDDIT, training_epochs, load_model, rebalance_classes, LR)
+
+"""
+#### 2. Read data
 """
 
-training_epochs = 0
-SUBREDDIT = 'jokes'
-MAX_SEQUENCE_LENGTH = 200
+tokenizer = BertTokenizer.from_pretrained(MODEL_TYPE)
 
-df = pd.read_csv('processed_data/' + SUBREDDIT + '.csv', sep='<endoftext>')
+df = pd.read_csv('processed_data/' + SUBREDDIT + '.csv', sep='<endoftext>', engine='python')
+df_train = pd.read_csv('processed_data/' + SUBREDDIT + '_train.csv', sep='<endoftext>', engine='python')
+df_test = pd.read_csv('processed_data/' + SUBREDDIT + '_test.csv', sep='<endoftext>', engine='python')
+df_dev = pd.read_csv('processed_data/' + SUBREDDIT + '_dev.csv', sep='<endoftext>', engine='python')
 
-df_train = pd.read_csv('processed_data/' + SUBREDDIT + '_train.csv', sep='<endoftext>')
 print(df_train.head(3))
-
-df_test = pd.read_csv('processed_data/' + SUBREDDIT + '_test.csv', sep='<endoftext>')
 print(df_test.head(3))
 
-df_dev = pd.read_csv('processed_data/' + SUBREDDIT + '_dev.csv', sep='<endoftext>')
+if rebalance_classes:
+    print(df_train.humor.value_counts())
+    df_majority = df_train[df_train.humor == 0]
+    df_minority = df_train[df_train.humor == 1]
 
-# df_train = df_train[:10]
-# df_test = df_test[:10]
-# df_dev = df_dev[:10]
-# df = df_train + df_test + df_dev
- 
+    df_minority_upsampled = df_minority.sample(n=len(df_majority), replace=True, random_state=42)
+
+    df_train = pd.concat([df_majority, df_minority_upsampled])
+
+    print(df_train.humor.value_counts())
+
 
 test_df_y = df_test.copy()
 del df_test['humor']
@@ -79,10 +103,11 @@ print('\noutput categories:\n\t', output_categories)
 
 """#### 2. Preprocessing functions
 
-These are some functions that will be used to preprocess the raw text data into useable Bert inputs.<br>
+These are some functions that will be used to preprocess the raw text data into useable Bert inputs.
 
-*update 4:* credits to [Minh](https://www.kaggle.com/dathudeptrai) for this implementation. If I'm not mistaken, it could be used directly with other Huggingface transformers too! Note that due to the 2 x 512 input, it will require significantly more memory when finetuning BERT.
+credits to [Minh](https://www.kaggle.com/dathudeptrai) for this implementation.
 """
+
 
 def _convert_to_transformer_inputs(title, question, answer, tokenizer, max_sequence_length):
     """Converts tokenized input to ids, masks and segments for transformer (including bert)"""
@@ -142,8 +167,10 @@ def compute_input_arrays(df, columns, tokenizer, max_sequence_length):
             np.asarray(input_masks_a, dtype=np.int32), 
             np.asarray(input_segments_a, dtype=np.int32)]
 
+
 def compute_output_arrays(df, columns):
     return np.asarray(df[columns])
+
 
 outputs = compute_output_arrays(df_train, output_categories)
 inputs = compute_input_arrays(df_train, input_categories, tokenizer, MAX_SEQUENCE_LENGTH)
@@ -153,11 +180,10 @@ dev_outputs = compute_output_arrays(df_dev, output_categories)
 
 
 """## 3. Create model
-
-~~`compute_spearmanr()`~~ `mean_squared_error` is used to compute the competition metric for the validation set
-<br><br>
+`compute_spearmanr()`~~ `mean_squared_error` is used to compute the competition metric for the validation set
 `create_model()` contains the actual architecture that will be used to finetune BERT to our dataset.
 """
+
 
 def create_model():
     q_id = tf.keras.layers.Input((MAX_SEQUENCE_LENGTH,), dtype=tf.int32)
@@ -170,7 +196,7 @@ def create_model():
     a_atn = tf.keras.layers.Input((MAX_SEQUENCE_LENGTH,), dtype=tf.int32)
     
     config = BertConfig() # print(config) to see settings
-    config.output_hidden_states = False # Set to True to obtain hidden states
+    config.output_attentions = True # Set to True to obtain hidden states
     # caution: when using e.g. XLNet, XLNetConfig() will automatically use xlnet-large config
     
     bert_model = TFBertModel.from_pretrained('bert-base-uncased', config=config)
@@ -178,7 +204,7 @@ def create_model():
     # if config.output_hidden_states = True, obtain hidden states via bert_model(...)[-1]
     q_embedding = bert_model(q_id, attention_mask=q_mask, token_type_ids=q_atn)[0]
     a_embedding = bert_model(a_id, attention_mask=a_mask, token_type_ids=a_atn)[0]
-    
+
     q = tf.keras.layers.GlobalAveragePooling1D()(q_embedding)
     a = tf.keras.layers.GlobalAveragePooling1D()(a_embedding)
     
@@ -190,15 +216,16 @@ def create_model():
 
     model = tf.keras.models.Model(inputs=[q_id, q_mask, q_atn, ], outputs=x)
     
-    return model
+    return model, bert_model
+
 
 """## 5. Training, validation and testing
 
 Loops over the folds in gkf and trains each fold for 3 epochs --- with a learning rate of 3e-5 and batch_size of 6. A simple binary crossentropy is used as the objective-/loss-function.
 """
 
+
 # Evaluation Metrics
-import sklearn
 def print_evaluation_metrics(y_true, y_pred, label='', is_regression=True, label2=''):
     print('==================', label2)
     ### For regression
@@ -227,20 +254,17 @@ def print_evaluation_metrics(y_true, y_pred, label='', is_regression=True, label
         return sklearn.metrics.accuracy_score(y_true, y_pred)
 
 
-def max_f1(y_true, y_pred):
-    max_f1_score = 0
+def max_acc(y_true, y_pred):
+    ret = 0
     best_split = 0
-    for split_val in np.arange(0.05, 0.99, 0.05):
-        f1 = sklearn.metrics.f1_score(y_true, y_pred >= split_val)
-        if f1 > max_f1_score:
-            max_f1_score = f1
+    for split_val in np.arange(0.05, 0.9, 0.001):
+        acc = sklearn.metrics.balanced_accuracy_score(y_true, y_pred >= split_val)
+        if acc > ret:
+            ret = acc
             best_split = split_val
 
-    return max_f1_score, best_split
+    return ret, best_split
 
-
-print_evaluation_metrics([1,0], [0.9,0.1], '', True)
-print_evaluation_metrics([1,0], [1,1], '', False)
 
 print(len(dev_inputs), len(dev_inputs[0]))
 
@@ -249,8 +273,7 @@ min_test = []
 test_preds = []
 valid_preds = []
 best_model = False
-load_model = True
-LR = 0.000005
+best_split = 0
 max_score = 0
 
 print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
@@ -264,12 +287,11 @@ valid_outputs = dev_outputs
 print(np.array(train_inputs).shape, np.array(train_outputs).shape)
 
 K.clear_session()
-model = create_model()
+model, bert_model = create_model()
 optimizer = tf.keras.optimizers.Adam(learning_rate=LR)
 model.compile(loss='binary_crossentropy', optimizer=optimizer)
 
 if load_model:
-    # LOAD MODEL
     print('Loading best model...')
     t_inputs = [(inputs[i][:])[:1] for i in range(len(inputs))]
     t_outputs = (outputs[:])[:1]
@@ -281,27 +303,27 @@ if load_model:
     model.optimizer.set_weights(weight_values)
 
     valid_preds.append(model.predict(valid_inputs, verbose=1))
-    max_score, _ = max_f1(np.array(valid_outputs), np.array(valid_preds[-1]))
+    max_score, best_split = max_acc(np.array(valid_outputs), np.array(valid_preds[-1]))
     print('Current max score:', max_score)
 
     best_model = model
 
 for i in range(training_epochs):
-    if i % 3 == 0 and i > 0:
-        LR = LR / 2
-        print('Reducing learning rate to', LR)
-        model.optimizer.lr.assign(LR)
-
     print('Starting epoch', i)
+
     model.fit(train_inputs, train_outputs, epochs=1, batch_size=6)
+
     valid_preds.append(model.predict(valid_inputs, verbose=1))
-    score, _ = max_f1(np.array(valid_outputs), np.array(valid_preds[-1]))
+    score, split_val = max_acc(np.array(valid_outputs), np.array(valid_preds[-1]))
+
     print('score', score)
     if score >= max_score:
         print('new score >> ', score)
+        print('split value: ', split_val)
         print('Saving model...')
         max_score = score
         best_model = model
+        best_split = split_val
 
         # SAVE MODEL
         best_model.save_weights('predictor_models/' + SUBREDDIT + '/weights.h5')
@@ -321,19 +343,23 @@ print_evaluation_metrics(np.array(valid_outputs), np.array(valid_preds[-1]), '')
 
 min_test = best_model.predict(test_inputs, verbose=1)
 
-"""## Regression submission"""
-
 df_sub = test_df_y.copy()
 df_sub['pred'] = min_test
 
 print_evaluation_metrics(df_sub['humor'], df_sub['pred'], '', True)
 
-"""## Binary submission"""
+y_test = df_sub['humor']
+y_pred = (df_sub['pred'] > best_split)
 
-for split in np.arange(0.1, 0.99, 0.1).tolist():
-    df_sub['pred_bi'] = (df_sub['pred'] > split)
+print('Best split:', best_split)
+print('Balanced accuracy:', sklearn.metrics.balanced_accuracy_score(y_test, y_pred))
+print('F1 Score:', sklearn.metrics.f1_score(y_test, y_pred))
+print('Accuracy:', sklearn.metrics.accuracy_score(y_test, y_pred))
+print('Precision:', sklearn.metrics.average_precision_score(y_test, y_pred))
+print('Recall:', sklearn.metrics.recall_score(y_test, y_pred))
 
-    print_evaluation_metrics(df_sub['humor'], df_sub['pred_bi'], '', False, 'SPLIT on '+str(split))
-    df_sub.head()
+with open('predictions/' + SUBREDDIT + '_predictions.csv', 'w') as f:
+    f.write('test,pred\n')
+    for i in range(len(y_pred)):
+        f.write(str(y_test[i]) + ',' + str(y_pred[i]) + ',' + df_sub['text'][i] + '\n')
 
-print('max score and split:', max_f1(df_sub['humor'], df_sub['pred']))
