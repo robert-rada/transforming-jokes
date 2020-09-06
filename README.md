@@ -89,7 +89,12 @@ python reddit_predictor.py --subreddit=jokes --no_epochs=0
 
 ## Train the generator
 
+The generator was trained on Google Colab with `joke_generator.ipynb`.
+
+To train it locally, use the following commands:
+
 ```
+conda activate generator
 python joke_generator.py jokes
 python joke_generator.py dadjokes
 python joke_generator.py antijokes
@@ -102,12 +107,14 @@ python joke_generator.py antijokes
 Run `run_generator.py`. Parameters:
 
 ```
+conda activate generator
 python run_generator.py RUN_NAME SUBREDDIT NO_SAMPLES (TEMPERATURE)
 ```
 
 For example, to generate 1000 jokes using the generator trained on data from /r/jokes:
 
 ```
+conda activate generator
 python run_generator.py jokes1 jokes 1000 0.7
 ```
 
