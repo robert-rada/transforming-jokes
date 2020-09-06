@@ -1,13 +1,12 @@
-# %tensorflow_version 1.x
-# !pip install -q gpt-2-simple
 import gpt_2_simple as gpt2
-from datetime import datetime
-
+import sys
 
 gpt2.download_gpt2(model_name="355M")
 
-file_name = "processed_data/jokes.txt"
-RUN_NAME = "jokes1"
+SUBREDDIT = sys.argv[1]
+
+file_name = "processed_data/" + SUBREDDIT + ".txt"
+RUN_NAME = SUBREDDIT + "1"
 CHKPOINT_DIR = 'generator_models/'
 
 sess = gpt2.start_tf_sess()

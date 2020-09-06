@@ -1,3 +1,7 @@
+'''
+This file is a modified version of https://github.com/Moradnejad/ColBERT-Using-BERT-Sentence-Embedding-for-Humor-Detection
+'''
+
 import pandas as pd
 import numpy as np
 import tensorflow as tf
@@ -178,13 +182,6 @@ test_inputs = compute_input_arrays(df_test, input_categories, tokenizer, MAX_SEQ
 dev_inputs = compute_input_arrays(df_dev, input_categories, tokenizer, MAX_SEQUENCE_LENGTH)
 dev_outputs = compute_output_arrays(df_dev, output_categories)
 
-
-"""## 3. Create model
-`compute_spearmanr()`~~ `mean_squared_error` is used to compute the competition metric for the validation set
-`create_model()` contains the actual architecture that will be used to finetune BERT to our dataset.
-"""
-
-
 def create_model():
     q_id = tf.keras.layers.Input((MAX_SEQUENCE_LENGTH,), dtype=tf.int32)
     a_id = tf.keras.layers.Input((MAX_SEQUENCE_LENGTH,), dtype=tf.int32)
@@ -217,13 +214,6 @@ def create_model():
     model = tf.keras.models.Model(inputs=[q_id, q_mask, q_atn, ], outputs=x)
     
     return model, bert_model
-
-
-"""## 5. Training, validation and testing
-
-Loops over the folds in gkf and trains each fold for 3 epochs --- with a learning rate of 3e-5 and batch_size of 6. A simple binary crossentropy is used as the objective-/loss-function.
-"""
-
 
 # Evaluation Metrics
 def print_evaluation_metrics(y_true, y_pred, label='', is_regression=True, label2=''):

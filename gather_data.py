@@ -131,7 +131,7 @@ def gather_submissions_by_id(subreddit, save_every=1000, limit=None, resume=Fals
 def main():
     argument_list = sys.argv[1:]
     options = "s:l:r:"
-    long_options = ["subreddit =", "limit =", "resume ="]
+    long_options = ["subreddit=", "limit=", "resume="]
 
     subreddit = 'jokes'
     limit = '1000'
@@ -141,13 +141,13 @@ def main():
         arguments, values = getopt.getopt(argument_list, options, long_options)
 
         for current_argument, current_value in arguments:
-            if current_argument in ("-s", "--subreddit "):
+            if current_argument in ("-s", "--subreddit"):
                 subreddit = current_value
 
-            elif current_argument in ("-l", "--limit "):
+            elif current_argument in ("-l", "--limit"):
                 limit = int(current_value)
 
-            elif current_argument in ("-r", "--resume "):
+            elif current_argument in ("-r", "--resume"):
                 resume = current_value == 'True'
 
     except getopt.error as err:

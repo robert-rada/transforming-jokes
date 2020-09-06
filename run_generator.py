@@ -95,7 +95,12 @@ def main():
 
     temperature = 1
     if len(sys.argv) >= 5:
-        temperature = float(sys.argv[4])
+        try:
+            temperature = float(sys.argv[4])
+        except Exception as e:
+            print(e)
+            print('Fourth argument should be a float')
+            return
 
     update_checkpoint(run_name)
 
