@@ -84,7 +84,7 @@ python reddit_predictor.py --subreddit=antijokes --no_epochs=10 --learning_rate=
 To compute the accuracy and other metrics for an existing model run the script with `--no_epochs=0`. For example:
 
 ```
-python reddit_predictor.py --subreddit=jokes --no_epochs=0
+python reddit_predictor.py --subreddit=jokes --no_epochs=0 --load_model
 ```
 
 ## Train the generator
